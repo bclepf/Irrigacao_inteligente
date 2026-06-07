@@ -1,0 +1,1100 @@
+﻿// FILE: C:\Users\Gabriel\Documents\GitHub\plant-pal-dashboard\src\components\DeletePlantDialog.tsx
+import type { Plant } from "@/lib/api";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
+
+interface Props {
+  open: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  plant: Plant | null;
+  loading?: boolean;
+}
+
+const DeletePlantDialog = ({ open, onClose, onConfirm, plant, loading }: Props) => (
+  <AlertDialog open={open} onOpenChange={(v) => !v && onClose()}>
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Excluir "{plant?.name}"?</AlertDialogTitle>
+        <AlertDialogDescription>
+          Essa aÃ§Ã£o nÃ£o pode ser desfeita. A planta serÃ¡ removida permanentemente do sistema de monitoramento.
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel onClick={onClose}>Cancelar</AlertDialogCancel>
+        <AlertDialogAction
+          onClick={onConfirm}
+          disabled={loading}
+          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+        >
+          Excluir
+        </AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
+);
+
+export default DeletePlantDialog;
+
+
+
+// FILE: C:\Users\Gabriel\Documents\GitHub\plant-pal-dashboard\src\components\NavLink.tsx
+import { NavLink as RouterNavLink, NavLinkProps } from "react-router-dom";
+import { forwardRef } from "react";
+import { cn } from "@/lib/utils";
+
+interface NavLinkCompatProps extends Omit<NavLinkProps, "className"> {
+  className?: string;
+  activeClassName?: string;
+  pendingClassName?: string;
+}
+
+const NavLink = forwardRef<HTMLAnchorElement, NavLinkCompatProps>(
+  ({ className, activeClassName, pendingClassName, to, ...props }, ref) => {
+    return (
+      <RouterNavLink
+        ref={ref}
+        to={to}
+        className={({ isActive, isPending }) =>
+          cn(className, isActive && activeClassName, isPending && pendingClassName)
+        }
+        {...props}
+      />
+    );
+  },
+);
+
+NavLink.displayName = "NavLink";
+
+export { NavLink };
+
+
+
+// FILE: C:\Users\Gabriel\Documents\GitHub\plant-pal-dashboard\src\components\PlantCard.tsx
+import { motion } from "framer-motion";
+import type { Plant } from "@/lib/api";
+import { Droplets, Clock, Edit2, Trash2, TrendingUp, TrendingDown, Minus, MapPin, Tag, Droplet } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+
+const statusConfig = {
+  Adequado: { class: "bg-status-adequate/15 text-status-adequate border border-status-adequate/30", label: "Adequado", Icon: Minus },
+  Seco: { class: "bg-status-dry/15 text-status-dry border border-status-dry/30", label: "Seco", Icon: TrendingDown },
+  Ãšmido: { class: "bg-status-wet/15 text-status-wet border border-status-wet/30", label: "Ãšmido", Icon: TrendingUp },
+};
+
+interface Props {
+  plant: Plant;
+  onEdit: (plant: Plant) => void;
+  onDelete: (plant: Plant) => void;
+  onWater: (plant: Plant) => void;
+}
+
+const PlantCard = ({ plant, onEdit, onDelete, onWater }: Props) => {
+  const cfg = statusConfig[plant.status];
+  const inRange = plant.humidity >= plant.idealHumidity.min && plant.humidity <= plant.idealHumidity.max;
+
+  return (
+    <motion.div
+      key={plant.id}
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35 }}
+      className="bg-card rounded-2xl shadow-card hover:shadow-card-hover transition-shadow border border-border overflow-hidden"
+    >
+      {/* Header */}
+      <div className="px-6 pt-5 pb-4 flex items-center justify-between" style={{ background: "var(--gradient-hero)" }}>
+        <div>
+          <h2 className="text-xl font-display font-bold text-primary-foreground">{plant.name}</h2>
+          <div className="flex items-center gap-3 mt-1">
+            <span className="flex items-center gap-1 text-primary-foreground/70 text-xs">
+              <Tag className="w-3 h-3" /> {plant.type}
+            </span>
+            <span className="flex items-center gap-1 text-primary-foreground/70 text-xs">
+              <MapPin className="w-3 h-3" /> {plant.location}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1.5 ${cfg.class} bg-primary-foreground/90`}>
+            <cfg.Icon className="w-3 h-3" />
+            {cfg.label}
+          </span>
+        </div>
+      </div>
+
+      <div className="p-6 space-y-5">
+        {/* Humidity gauge */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2 text-muted-foreground text-sm">
+              <Droplets className="w-4 h-4 text-primary" />
+              Umidade Atual
+            </div>
+            <span className="text-xs text-muted-foreground">
+              Ideal: {plant.idealHumidity.min}â€“{plant.idealHumidity.max}%
+            </span>
+          </div>
+
+          <div className="flex items-end gap-2 mb-3">
+            <span className="text-4xl font-bold text-foreground">{plant.humidity}%</span>
+            {inRange ? (
+              <span className="text-xs text-status-adequate mb-1.5 font-medium">â— Dentro da faixa</span>
+            ) : (
+              <span className="text-xs text-status-dry mb-1.5 font-medium">â— Fora da faixa</span>
+            )}
+          </div>
+
+          <div className="relative">
+            <Progress value={plant.humidity} className="h-3 bg-secondary rounded-full" />
+            <div
+              className="absolute top-0 h-3 border-l-2 border-primary/40"
+              style={{ left: `${plant.idealHumidity.min}%` }}
+            />
+            <div
+              className="absolute top-0 h-3 border-r-2 border-primary/40"
+              style={{ left: `${plant.idealHumidity.max}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Last watered */}
+        <div className="flex items-center gap-2 text-sm text-muted-foreground bg-secondary/50 rounded-lg px-3 py-2.5">
+          <Clock className="w-4 h-4" />
+          Ãšltima irrigaÃ§Ã£o: <span className="font-medium text-foreground">{plant.lastWatered}</span>
+        </div>
+
+        {/* Action buttons */}
+        <div className="grid grid-cols-3 gap-3">
+          <Button
+            className="gap-2"
+            onClick={() => onWater(plant)}
+          >
+            <Droplet className="w-4 h-4" />
+            Irrigar
+          </Button>
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => onEdit(plant)}
+          >
+            <Edit2 className="w-4 h-4" />
+            Editar
+          </Button>
+          <Button
+            variant="outline"
+            className="gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
+            onClick={() => onDelete(plant)}
+          >
+            <Trash2 className="w-4 h-4" />
+            Excluir
+          </Button>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+export default PlantCard;
+
+
+
+// FILE: C:\Users\Gabriel\Documents\GitHub\plant-pal-dashboard\src\components\PlantFormDialog.tsx
+import { useState, useEffect } from "react";
+import type { Plant, PlantInput } from "@/lib/api";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Leaf, Save } from "lucide-react";
+
+interface Props {
+  open: boolean;
+  onClose: () => void;
+  onSave: (data: PlantInput) => void;
+  plant?: Plant | null;
+  loading?: boolean;
+}
+
+const plantTypes = ["Ornamental", "Flor", "Suculenta", "Erva", "FrutÃ­fera", "Trepadeira"];
+const locations = ["Sala de Estar", "Quarto", "Cozinha", "EscritÃ³rio", "Varanda", "Jardim", "Banheiro"];
+
+const PlantFormDialog = ({ open, onClose, onSave, plant, loading }: Props) => {
+  const [name, setName] = useState("");
+  const [type, setType] = useState("Ornamental");
+  const [location, setLocation] = useState("Sala de Estar");
+  const [humidity, setHumidity] = useState(50);
+  const [idealMin, setIdealMin] = useState(40);
+  const [idealMax, setIdealMax] = useState(70);
+  const [lastWatered, setLastWatered] = useState("Agora mesmo");
+
+  useEffect(() => {
+    if (plant) {
+      setName(plant.name);
+      setType(plant.type);
+      setLocation(plant.location);
+      setHumidity(plant.humidity);
+      setIdealMin(plant.idealHumidity.min);
+      setIdealMax(plant.idealHumidity.max);
+      setLastWatered(plant.lastWatered);
+    } else {
+      setName("");
+      setType("Ornamental");
+      setLocation("Sala de Estar");
+      setHumidity(50);
+      setIdealMin(40);
+      setIdealMax(70);
+      setLastWatered("Agora mesmo");
+    }
+  }, [plant, open]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    onSave({
+      name: name.trim(),
+      type,
+      location,
+      humidity,
+      idealHumidity: { min: idealMin, max: idealMax },
+      lastWatered,
+    });
+  };
+
+  const isEdit = !!plant;
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Leaf className="w-5 h-5 text-primary" />
+            {isEdit ? "Editar Planta" : "Nova Planta"}
+          </DialogTitle>
+          <DialogDescription>
+            {isEdit ? "Atualize as informaÃ§Ãµes da planta." : "Preencha os dados para adicionar uma nova planta."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <Label htmlFor="name">Nome da Planta</Label>
+              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Samambaia" required />
+            </div>
+
+            <div>
+              <Label htmlFor="type">Tipo</Label>
+              <select
+                id="type"
+                value={type}
+                onChange={(e) => setType(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {plantTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <Label htmlFor="location">Local</Label>
+              <select
+                id="location"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {locations.map((l) => <option key={l} value={l}>{l}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <Label htmlFor="humidity">Umidade Atual (%)</Label>
+              <Input id="humidity" type="number" min={0} max={100} value={humidity} onChange={(e) => setHumidity(Number(e.target.value))} />
+            </div>
+
+            <div>
+              <Label>Faixa Ideal (%)</Label>
+              <div className="flex items-center gap-2">
+                <Input type="number" min={0} max={100} value={idealMin} onChange={(e) => setIdealMin(Number(e.target.value))} className="w-20" />
+                <span className="text-muted-foreground text-sm">â€“</span>
+                <Input type="number" min={0} max={100} value={idealMax} onChange={(e) => setIdealMax(Number(e.target.value))} className="w-20" />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
+            <Button type="submit" disabled={loading || !name.trim()} className="gap-2">
+              <Save className="w-4 h-4" />
+              {isEdit ? "Salvar" : "Adicionar"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default PlantFormDialog;
+
+
+
+// FILE: C:\Users\Gabriel\Documents\GitHub\plant-pal-dashboard\src\components\PlantSelector.tsx
+import type { Plant } from "@/lib/api";
+import { Leaf, ChevronRight, Plus, Search } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { useState } from "react";
+
+interface Props {
+  plants: Plant[];
+  selectedId: number | null;
+  onSelect: (id: number) => void;
+  onAdd: () => void;
+}
+
+const statusDot: Record<string, string> = {
+  Adequado: "bg-status-adequate",
+  Seco: "bg-status-dry",
+  Ãšmido: "bg-status-wet",
+};
+
+const PlantSelector = ({ plants, selectedId, onSelect, onAdd }: Props) => {
+  const [search, setSearch] = useState("");
+
+  const filtered = plants.filter((p) =>
+    p.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="bg-card rounded-2xl border border-border shadow-card overflow-hidden flex flex-col">
+      <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border">
+        <div className="flex items-center gap-2">
+          <Leaf className="w-4 h-4 text-primary" />
+          <span className="text-sm font-semibold text-foreground">Suas Plantas</span>
+        </div>
+        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={onAdd} title="Adicionar planta">
+          <Plus className="w-4 h-4" />
+        </Button>
+      </div>
+
+      {/* Search */}
+      <div className="px-3 py-2 border-b border-border">
+        <div className="flex items-center gap-2 bg-secondary/60 rounded-lg px-3 py-1.5">
+          <Search className="w-3.5 h-3.5 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Buscar plantaâ€¦"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none w-full"
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-col overflow-y-auto max-h-[420px]">
+        {filtered.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-6">Nenhuma planta encontrada.</p>
+        ) : (
+          filtered.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => onSelect(p.id)}
+              className={cn(
+                "flex items-center gap-3 px-4 py-3 text-left transition-all hover:bg-secondary/60",
+                selectedId === p.id && "bg-secondary border-l-[3px] border-primary"
+              )}
+            >
+              <span className={cn("w-2.5 h-2.5 rounded-full shrink-0 ring-2 ring-background", statusDot[p.status])} />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground truncate">{p.name}</p>
+                <p className="text-xs text-muted-foreground">{p.humidity}% Â· {p.type}</p>
+              </div>
+              {selectedId === p.id && <ChevronRight className="w-4 h-4 text-primary shrink-0" />}
+            </button>
+          ))
+        )}
+      </div>
+
+      {/* Add button mobile */}
+      <div className="border-t border-border p-3 md:hidden">
+        <Button className="w-full gap-2" size="sm" onClick={onAdd}>
+          <Plus className="w-4 h-4" />
+          Nova Planta
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+export default PlantSelector;
+
+
+
+// FILE: C:\Users\Gabriel\Documents\GitHub\plant-pal-dashboard\src\components\StatsBar.tsx
+import type { Plant } from "@/lib/api";
+import { Leaf, AlertTriangle, Droplets, Sun } from "lucide-react";
+import { motion } from "framer-motion";
+
+interface Props {
+  plants: Plant[];
+}
+
+const StatsBar = ({ plants }: Props) => {
+  const total = plants.length;
+  const alerts = plants.filter((p) => p.status === "Seco").length;
+  const healthy = plants.filter((p) => p.status === "Adequado").length;
+  const avgHumidity = total ? Math.round(plants.reduce((sum, p) => sum + p.humidity, 0) / total) : 0;
+
+  const stats = [
+    { icon: Leaf, label: "Total de Plantas", value: total, iconClass: "text-primary bg-primary/10" },
+    { icon: Sun, label: "SaudÃ¡veis", value: healthy, iconClass: "text-status-adequate bg-status-adequate/10" },
+    { icon: AlertTriangle, label: "Precisam de AtenÃ§Ã£o", value: alerts, iconClass: "text-status-dry bg-status-dry/10" },
+    { icon: Droplets, label: "Umidade MÃ©dia", value: `${avgHumidity}%`, iconClass: "text-status-wet bg-status-wet/10" },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {stats.map((s, i) => (
+        <motion.div
+          key={s.label}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: i * 0.05 }}
+          className="flex items-center gap-3 bg-card rounded-xl border border-border p-4 shadow-card hover:shadow-card-hover transition-shadow"
+        >
+          <div className={`rounded-lg p-2.5 ${s.iconClass}`}>
+            <s.icon className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xl font-bold text-foreground leading-none">{s.value}</p>
+            <p className="text-[11px] text-muted-foreground mt-1">{s.label}</p>
+          </div>
+        </motion.div>
+      ))}
+    </div>
+  );
+};
+
+export default StatsBar;
+
+
+
+// FILE: C:\Users\Gabriel\Documents\GitHub\plant-pal-dashboard\src\hooks\use-mobile.tsx
+import * as React from "react";
+
+const MOBILE_BREAKPOINT = 768;
+
+export function useIsMobile() {
+  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined);
+
+  React.useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
+    const onChange = () => {
+      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+    };
+    mql.addEventListener("change", onChange);
+    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+
+  return !!isMobile;
+}
+
+
+
+// FILE: C:\Users\Gabriel\Documents\GitHub\plant-pal-dashboard\src\hooks\use-toast.ts
+import * as React from "react";
+
+import type { ToastActionElement, ToastProps } from "@/components/ui/toast";
+
+const TOAST_LIMIT = 1;
+const TOAST_REMOVE_DELAY = 1000000;
+
+type ToasterToast = ToastProps & {
+  id: string;
+  title?: React.ReactNode;
+  description?: React.ReactNode;
+  action?: ToastActionElement;
+};
+
+const actionTypes = {
+  ADD_TOAST: "ADD_TOAST",
+  UPDATE_TOAST: "UPDATE_TOAST",
+  DISMISS_TOAST: "DISMISS_TOAST",
+  REMOVE_TOAST: "REMOVE_TOAST",
+} as const;
+
+let count = 0;
+
+function genId() {
+  count = (count + 1) % Number.MAX_SAFE_INTEGER;
+  return count.toString();
+}
+
+type ActionType = typeof actionTypes;
+
+type Action =
+  | {
+      type: ActionType["ADD_TOAST"];
+      toast: ToasterToast;
+    }
+  | {
+      type: ActionType["UPDATE_TOAST"];
+      toast: Partial<ToasterToast>;
+    }
+  | {
+      type: ActionType["DISMISS_TOAST"];
+      toastId?: ToasterToast["id"];
+    }
+  | {
+      type: ActionType["REMOVE_TOAST"];
+      toastId?: ToasterToast["id"];
+    };
+
+interface State {
+  toasts: ToasterToast[];
+}
+
+const toastTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
+
+const addToRemoveQueue = (toastId: string) => {
+  if (toastTimeouts.has(toastId)) {
+    return;
+  }
+
+  const timeout = setTimeout(() => {
+    toastTimeouts.delete(toastId);
+    dispatch({
+      type: "REMOVE_TOAST",
+      toastId: toastId,
+    });
+  }, TOAST_REMOVE_DELAY);
+
+  toastTimeouts.set(toastId, timeout);
+};
+
+export const reducer = (state: State, action: Action): State => {
+  switch (action.type) {
+    case "ADD_TOAST":
+      return {
+        ...state,
+        toasts: [action.toast, ...state.toasts].slice(0, TOAST_LIMIT),
+      };
+
+    case "UPDATE_TOAST":
+      return {
+        ...state,
+        toasts: state.toasts.map((t) => (t.id === action.toast.id ? { ...t, ...action.toast } : t)),
+      };
+
+    case "DISMISS_TOAST": {
+      const { toastId } = action;
+
+      // ! Side effects ! - This could be extracted into a dismissToast() action,
+      // but I'll keep it here for simplicity
+      if (toastId) {
+        addToRemoveQueue(toastId);
+      } else {
+        state.toasts.forEach((toast) => {
+          addToRemoveQueue(toast.id);
+        });
+      }
+
+      return {
+        ...state,
+        toasts: state.toasts.map((t) =>
+          t.id === toastId || toastId === undefined
+            ? {
+                ...t,
+                open: false,
+              }
+            : t,
+        ),
+      };
+    }
+    case "REMOVE_TOAST":
+      if (action.toastId === undefined) {
+        return {
+          ...state,
+          toasts: [],
+        };
+      }
+      return {
+        ...state,
+        toasts: state.toasts.filter((t) => t.id !== action.toastId),
+      };
+  }
+};
+
+const listeners: Array<(state: State) => void> = [];
+
+let memoryState: State = { toasts: [] };
+
+function dispatch(action: Action) {
+  memoryState = reducer(memoryState, action);
+  listeners.forEach((listener) => {
+    listener(memoryState);
+  });
+}
+
+type Toast = Omit<ToasterToast, "id">;
+
+function toast({ ...props }: Toast) {
+  const id = genId();
+
+  const update = (props: ToasterToast) =>
+    dispatch({
+      type: "UPDATE_TOAST",
+      toast: { ...props, id },
+    });
+  const dismiss = () => dispatch({ type: "DISMISS_TOAST", toastId: id });
+
+  dispatch({
+    type: "ADD_TOAST",
+    toast: {
+      ...props,
+      id,
+      open: true,
+      onOpenChange: (open) => {
+        if (!open) dismiss();
+      },
+    },
+  });
+
+  return {
+    id: id,
+    dismiss,
+    update,
+  };
+}
+
+function useToast() {
+  const [state, setState] = React.useState<State>(memoryState);
+
+  React.useEffect(() => {
+    listeners.push(setState);
+    return () => {
+      const index = listeners.indexOf(setState);
+      if (index > -1) {
+        listeners.splice(index, 1);
+      }
+    };
+  }, [state]);
+
+  return {
+    ...state,
+    toast,
+    dismiss: (toastId?: string) => dispatch({ type: "DISMISS_TOAST", toastId }),
+  };
+}
+
+export { useToast, toast };
+
+
+
+// FILE: C:\Users\Gabriel\Documents\GitHub\plant-pal-dashboard\src\lib\api.ts
+export interface Plant {
+  id: number;
+  name: string;
+  status: "Adequado" | "Seco" | "Ãšmido";
+  humidity: number;
+  lastWatered: string;
+  idealHumidity: { min: number; max: number };
+  type: string;
+  location: string;
+}
+
+let nextId = 7;
+
+const mockPlants: Plant[] = [
+  { id: 1, name: "Samambaia", status: "Adequado", humidity: 65, lastWatered: "HÃ¡ 2 horas", idealHumidity: { min: 60, max: 80 }, type: "Ornamental", location: "Sala de Estar" },
+  { id: 2, name: "OrquÃ­dea", status: "Seco", humidity: 28, lastWatered: "HÃ¡ 1 dia", idealHumidity: { min: 50, max: 70 }, type: "Flor", location: "Quarto" },
+  { id: 3, name: "Cacto", status: "Adequado", humidity: 20, lastWatered: "HÃ¡ 5 dias", idealHumidity: { min: 10, max: 30 }, type: "Suculenta", location: "EscritÃ³rio" },
+  { id: 4, name: "ManjericÃ£o", status: "Ãšmido", humidity: 85, lastWatered: "HÃ¡ 30 min", idealHumidity: { min: 50, max: 70 }, type: "Erva", location: "Cozinha" },
+  { id: 5, name: "Aloe Vera", status: "Adequado", humidity: 35, lastWatered: "HÃ¡ 3 dias", idealHumidity: { min: 20, max: 40 }, type: "Suculenta", location: "Varanda" },
+  { id: 6, name: "Rosa", status: "Seco", humidity: 32, lastWatered: "HÃ¡ 2 dias", idealHumidity: { min: 55, max: 75 }, type: "Flor", location: "Jardim" },
+];
+
+let plants = [...mockPlants];
+
+function computeStatus(humidity: number, ideal: { min: number; max: number }): Plant["status"] {
+  if (humidity < ideal.min) return "Seco";
+  if (humidity > ideal.max) return "Ãšmido";
+  return "Adequado";
+}
+
+export async function fetchPlants(): Promise<Plant[]> {
+  await new Promise((r) => setTimeout(r, 400));
+  return plants.map((p) => {
+    const humidity = Math.max(0, Math.min(100, p.humidity + Math.floor(Math.random() * 5 - 2)));
+    return { ...p, humidity, status: computeStatus(humidity, p.idealHumidity) };
+  });
+}
+
+export type PlantInput = Omit<Plant, "id" | "status">;
+
+export async function addPlant(input: PlantInput): Promise<Plant> {
+  await new Promise((r) => setTimeout(r, 300));
+  const status = computeStatus(input.humidity, input.idealHumidity);
+  const plant: Plant = { ...input, id: nextId++, status };
+  plants.push(plant);
+  return plant;
+}
+
+export async function updatePlant(id: number, input: Partial<PlantInput>): Promise<Plant> {
+  await new Promise((r) => setTimeout(r, 300));
+  const idx = plants.findIndex((p) => p.id === id);
+  if (idx === -1) throw new Error("Planta nÃ£o encontrada");
+  plants[idx] = { ...plants[idx], ...input };
+  plants[idx].status = computeStatus(plants[idx].humidity, plants[idx].idealHumidity);
+  return plants[idx];
+}
+
+export async function deletePlant(id: number): Promise<void> {
+  await new Promise((r) => setTimeout(r, 300));
+  plants = plants.filter((p) => p.id !== id);
+}
+
+export async function waterPlant(id: number): Promise<Plant> {
+  await new Promise((r) => setTimeout(r, 300));
+  const idx = plants.findIndex((p) => p.id === id);
+  if (idx === -1) throw new Error("Planta nÃ£o encontrada");
+  plants[idx] = {
+    ...plants[idx],
+    humidity: Math.min(100, plants[idx].idealHumidity.max),
+    lastWatered: "Agora mesmo",
+    status: "Adequado",
+  };
+  return plants[idx];
+}
+
+
+
+// FILE: C:\Users\Gabriel\Documents\GitHub\plant-pal-dashboard\src\lib\utils.ts
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+
+
+// FILE: C:\Users\Gabriel\Documents\GitHub\plant-pal-dashboard\src\pages\Index.tsx
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { fetchPlants, addPlant, updatePlant, deletePlant, waterPlant } from "@/lib/api";
+import type { Plant, PlantInput } from "@/lib/api";
+import PlantSelector from "@/components/PlantSelector";
+import PlantCard from "@/components/PlantCard";
+import StatsBar from "@/components/StatsBar";
+import PlantFormDialog from "@/components/PlantFormDialog";
+import DeletePlantDialog from "@/components/DeletePlantDialog";
+import { Droplets, Loader2, Sprout } from "lucide-react";
+import { toast } from "sonner";
+import { motion } from "framer-motion";
+
+const Index = () => {
+  const queryClient = useQueryClient();
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+
+  // Form dialog state
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingPlant, setEditingPlant] = useState<Plant | null>(null);
+
+  // Delete dialog state
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletingPlant, setDeletingPlant] = useState<Plant | null>(null);
+
+  const { data: plants, isLoading } = useQuery({
+    queryKey: ["plants"],
+    queryFn: fetchPlants,
+    refetchInterval: 10000,
+  });
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["plants"] });
+
+  const addMutation = useMutation({
+    mutationFn: (input: PlantInput) => addPlant(input),
+    onSuccess: (plant) => {
+      invalidate();
+      setFormOpen(false);
+      setSelectedId(plant.id);
+      toast.success(`"${plant.name}" adicionada com sucesso!`);
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, input }: { id: number; input: Partial<PlantInput> }) => updatePlant(id, input),
+    onSuccess: (plant) => {
+      invalidate();
+      setFormOpen(false);
+      setEditingPlant(null);
+      toast.success(`"${plant.name}" atualizada!`);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => deletePlant(id),
+    onSuccess: () => {
+      invalidate();
+      setDeleteOpen(false);
+      if (selectedId === deletingPlant?.id) setSelectedId(null);
+      toast.success(`"${deletingPlant?.name}" removida.`);
+      setDeletingPlant(null);
+    },
+  });
+
+  const waterMutation = useMutation({
+    mutationFn: (id: number) => waterPlant(id),
+    onSuccess: (plant) => {
+      invalidate();
+      toast.success(`"${plant.name}" irrigada! ðŸ’§`);
+    },
+  });
+
+  const selectedPlant = plants?.find((p) => p.id === selectedId) ?? null;
+
+  const handleOpenAdd = () => {
+    setEditingPlant(null);
+    setFormOpen(true);
+  };
+
+  const handleOpenEdit = (plant: Plant) => {
+    setEditingPlant(plant);
+    setFormOpen(true);
+  };
+
+  const handleOpenDelete = (plant: Plant) => {
+    setDeletingPlant(plant);
+    setDeleteOpen(true);
+  };
+
+  const handleSave = (data: PlantInput) => {
+    if (editingPlant) {
+      updateMutation.mutate({ id: editingPlant.id, input: data });
+    } else {
+      addMutation.mutate(data);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col bg-background">
+      {/* Header */}
+      <header className="w-full py-6 px-6 md:px-10 relative overflow-hidden" style={{ background: "var(--gradient-hero)" }}>
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-2 left-[10%] w-24 h-24 rounded-full bg-primary-foreground/20 blur-2xl" />
+          <div className="absolute bottom-0 right-[15%] w-32 h-32 rounded-full bg-primary-foreground/15 blur-3xl" />
+          <div className="absolute top-1/2 left-1/2 w-40 h-40 rounded-full bg-primary-foreground/10 blur-3xl -translate-x-1/2" />
+        </div>
+        <div className="max-w-6xl mx-auto flex items-center gap-3 relative z-10">
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-primary-foreground/20 backdrop-blur-sm rounded-xl p-2.5"
+          >
+            <Droplets className="w-7 h-7 text-primary-foreground" />
+          </motion.div>
+          <div>
+            <h1 className="text-xl md:text-2xl font-display font-bold text-primary-foreground tracking-tight">
+              Dashboard de IrrigaÃ§Ã£o Inteligente
+            </h1>
+            <p className="text-primary-foreground/70 text-xs md:text-sm mt-0.5">
+              Monitoramento em tempo real das suas plantas
+            </p>
+          </div>
+        </div>
+      </header>
+
+      {/* Content */}
+      <main className="flex-1 w-full max-w-6xl mx-auto px-4 md:px-10 py-8">
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-32 gap-3">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <p className="text-muted-foreground text-sm">Carregando dadosâ€¦</p>
+          </div>
+        ) : plants ? (
+          <div className="flex flex-col gap-8">
+            <StatsBar plants={plants} />
+
+            <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-6 items-start">
+              <PlantSelector
+                plants={plants}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+                onAdd={handleOpenAdd}
+              />
+
+              {selectedPlant ? (
+                <PlantCard
+                  plant={selectedPlant}
+                  onEdit={handleOpenEdit}
+                  onDelete={handleOpenDelete}
+                  onWater={(p) => waterMutation.mutate(p.id)}
+                />
+              ) : (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex flex-col items-center justify-center py-16 bg-card rounded-2xl border border-border shadow-card"
+                >
+                  <div className="bg-secondary rounded-full p-4 mb-4">
+                    <Sprout className="w-8 h-8 text-primary" />
+                  </div>
+                  <p className="text-muted-foreground text-sm text-center">
+                    Selecione uma planta ao lado para<br />visualizar seus dados.
+                  </p>
+                </motion.div>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </main>
+
+      {/* Footer */}
+      <footer className="w-full py-4 text-center text-xs text-muted-foreground border-t border-border">
+        Sistema de IrrigaÃ§Ã£o Inteligente &copy; {new Date().getFullYear()}
+      </footer>
+
+      {/* Dialogs */}
+      <PlantFormDialog
+        open={formOpen}
+        onClose={() => { setFormOpen(false); setEditingPlant(null); }}
+        onSave={handleSave}
+        plant={editingPlant}
+        loading={addMutation.isPending || updateMutation.isPending}
+      />
+      <DeletePlantDialog
+        open={deleteOpen}
+        onClose={() => { setDeleteOpen(false); setDeletingPlant(null); }}
+        onConfirm={() => deletingPlant && deleteMutation.mutate(deletingPlant.id)}
+        plant={deletingPlant}
+        loading={deleteMutation.isPending}
+      />
+    </div>
+  );
+};
+
+export default Index;
+
+
+
+// FILE: C:\Users\Gabriel\Documents\GitHub\plant-pal-dashboard\src\pages\NotFound.tsx
+import { useLocation } from "react-router-dom";
+import { useEffect } from "react";
+
+const NotFound = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    console.error("404 Error: User attempted to access non-existent route:", location.pathname);
+  }, [location.pathname]);
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-muted">
+      <div className="text-center">
+        <h1 className="mb-4 text-4xl font-bold">404</h1>
+        <p className="mb-4 text-xl text-muted-foreground">Oops! Page not found</p>
+        <a href="/" className="text-primary underline hover:text-primary/90">
+          Return to Home
+        </a>
+      </div>
+    </div>
+  );
+};
+
+export default NotFound;
+
+
+
+// FILE: C:\Users\Gabriel\Documents\GitHub\plant-pal-dashboard\src\test\example.test.ts
+import { describe, it, expect } from "vitest";
+
+describe("example", () => {
+  it("should pass", () => {
+    expect(true).toBe(true);
+  });
+});
+
+
+
+// FILE: C:\Users\Gabriel\Documents\GitHub\plant-pal-dashboard\src\test\setup.ts
+import "@testing-library/jest-dom";
+
+Object.defineProperty(window, "matchMedia", {
+  writable: true,
+  value: (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => {},
+  }),
+});
+
+
+
+// FILE: C:\Users\Gabriel\Documents\GitHub\plant-pal-dashboard\src\App.tsx
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import Index from "./pages/Index.tsx";
+import NotFound from "./pages/NotFound.tsx";
+
+const queryClient = new QueryClient();
+
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Index />} />
+          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </BrowserRouter>
+    </TooltipProvider>
+  </QueryClientProvider>
+);
+
+export default App;
+
+
+
+// FILE: C:\Users\Gabriel\Documents\GitHub\plant-pal-dashboard\src\main.tsx
+import { createRoot } from "react-dom/client";
+import App from "./App.tsx";
+import "./index.css";
+
+createRoot(document.getElementById("root")!).render(<App />);
+
+
+
+// FILE: C:\Users\Gabriel\Documents\GitHub\plant-pal-dashboard\src\vite-env.d.ts
+/// <reference types="vite/client" />
+
+
+
