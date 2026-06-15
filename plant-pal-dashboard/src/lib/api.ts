@@ -7,9 +7,21 @@ export interface Plant {
   idealHumidity: { min: number; max: number };
   type: string;
   location: string;
+  weather?: WeatherStatus;
 }
 
-export type PlantInput = Omit<Plant, "id" | "status">;
+export interface WeatherStatus {
+  available: boolean;
+  shouldSkipWatering: boolean;
+  maxRainProbability: number;
+  expectedRainMm: number;
+  maxAirHumidity: number;
+  forecastWindowHours: number;
+  nextRainAt: string | null;
+  reason: string;
+}
+
+export type PlantInput = Omit<Plant, "id" | "status" | "weather">;
 
 const STORAGE_KEY = "sistema_irrigacao_plantas";
 
@@ -47,7 +59,7 @@ function savePlants(plantsList: Plant[]): void {
 }
 
 // Captura e converte o sinal bruto do sensor da ESP32 para porcentagem (0-100%)
-export async function getLiveSensorValue(): Promise<{ porcentagem: number; rele: boolean }> {
+export async function getLiveSensorValue(): Promise<{ porcentagem: number; rele: boolean; weather: WeatherStatus }> {
   const resposta = await fetch('/status');
   if (!resposta.ok) {
     throw new Error('Falha ao obter dados do hardware da ESP32');
@@ -62,7 +74,17 @@ export async function getLiveSensorValue(): Promise<{ porcentagem: number; rele:
 
   return {
     porcentagem,
-    rele: dadosESP32.rele
+    rele: Boolean(dadosESP32.rele),
+    weather: {
+      available: Boolean(dadosESP32.climaDisponivel),
+      shouldSkipWatering: Boolean(dadosESP32.chuva),
+      maxRainProbability: Number(dadosESP32.probabilidadeChuva ?? 0),
+      expectedRainMm: Number(dadosESP32.precipitacaoPrevista ?? 0),
+      maxAirHumidity: Number(dadosESP32.umidadeAr ?? 0),
+      forecastWindowHours: Number(dadosESP32.janelaPrevisaoHoras ?? 12),
+      nextRainAt: dadosESP32.proximaChuva || null,
+      reason: dadosESP32.motivoClima ?? "Clima ainda nao consultado",
+    }
   };
 }
 
@@ -76,7 +98,8 @@ export async function fetchPlants(): Promise<Plant[]> {
     ...planta,
     humidity: dadosSensor.porcentagem,
     status: computeStatus(dadosSensor.porcentagem, planta.idealHumidity),
-    lastWatered: dadosSensor.rele ? "Irrigando agora... 💦" : planta.lastWatered
+    lastWatered: dadosSensor.rele ? "Irrigando agora..." : planta.lastWatered,
+    weather: dadosSensor.weather,
   }));
 }
 
@@ -92,7 +115,8 @@ export async function addPlant(input: PlantInput): Promise<Plant> {
     ...input,
     id: nextId,
     humidity: dadosSensor.porcentagem,
-    status: computeStatus(dadosSensor.porcentagem, input.idealHumidity)
+    status: computeStatus(dadosSensor.porcentagem, input.idealHumidity),
+    weather: dadosSensor.weather,
   };
 
   listaPlantas.push(novaPlanta);
@@ -111,6 +135,7 @@ export async function updatePlant(id: number, input: Partial<PlantInput>): Promi
   const dadosSensor = await getLiveSensorValue();
   listaPlantas[idx].humidity = dadosSensor.porcentagem;
   listaPlantas[idx].status = computeStatus(dadosSensor.porcentagem, listaPlantas[idx].idealHumidity);
+  listaPlantas[idx].weather = dadosSensor.weather;
 
   savePlants(listaPlantas);
   return listaPlantas[idx];
@@ -142,7 +167,8 @@ export async function waterPlant(id: number): Promise<Plant> {
     return {
       ...listaPlantas[idx],
       humidity: dadosSensor.porcentagem,
-      status: computeStatus(dadosSensor.porcentagem, listaPlantas[idx].idealHumidity)
+      status: computeStatus(dadosSensor.porcentagem, listaPlantas[idx].idealHumidity),
+      weather: dadosSensor.weather,
     };
   }
 

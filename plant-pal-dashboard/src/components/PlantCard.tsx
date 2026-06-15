@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import type { Plant } from "@/lib/api";
-import { Clock, Droplet, Droplets, Edit2, MapPin, Minus, Tag, Trash2, TrendingDown, TrendingUp } from "lucide-react";
+import { CloudRain, Clock, Droplet, Droplets, Edit2, MapPin, Minus, Tag, Trash2, TrendingDown, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 
@@ -35,6 +35,20 @@ function normalizeStatus(status: Plant["status"]): VisualStatus {
   if (status === "Adequado") return "Adequado";
   if (status === "Seco") return "Seco";
   return "Umido";
+}
+
+function formatForecastTime(value: string | null) {
+  if (!value) return "Sem chuva no horario";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.replace("T", " ");
+
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 interface Props {
@@ -113,6 +127,48 @@ const PlantCard = ({ plant, onEdit, onDelete, onWater }: Props) => {
           <Clock className="h-4 w-4" />
           Ultima irrigacao: <span className="font-medium text-foreground">{plant.lastWatered}</span>
         </div>
+
+        {plant.weather ? (
+          <div
+            className={`rounded-lg border px-3 py-3 text-sm ${
+              plant.weather.shouldSkipWatering
+                ? "border-status-wet/30 bg-status-wet/10 text-status-wet"
+                : "border-border bg-secondary/50 text-muted-foreground"
+            }`}
+          >
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-start gap-2">
+                <CloudRain className="mt-0.5 h-4 w-4 shrink-0" />
+                <div>
+                  <p className="font-medium text-foreground">Previsao em Varginha</p>
+                  <p className="text-xs">{plant.weather.reason}</p>
+                </div>
+              </div>
+              <span className="rounded-full bg-background/80 px-2.5 py-1 text-xs font-medium">
+                {plant.weather.forecastWindowHours}h futuras
+              </span>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+              <div className="rounded-md bg-background/70 px-2 py-2">
+                <p className="text-muted-foreground">Prob. chuva</p>
+                <p className="font-semibold text-foreground">{plant.weather.maxRainProbability}%</p>
+              </div>
+              <div className="rounded-md bg-background/70 px-2 py-2">
+                <p className="text-muted-foreground">Chuva</p>
+                <p className="font-semibold text-foreground">{plant.weather.expectedRainMm.toFixed(1)} mm</p>
+              </div>
+              <div className="rounded-md bg-background/70 px-2 py-2">
+                <p className="text-muted-foreground">Umidade ar</p>
+                <p className="font-semibold text-foreground">{plant.weather.maxAirHumidity}%</p>
+              </div>
+              <div className="rounded-md bg-background/70 px-2 py-2">
+                <p className="text-muted-foreground">Prox. chuva</p>
+                <p className="font-semibold text-foreground">{formatForecastTime(plant.weather.nextRainAt)}</p>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Button className="w-full gap-2" onClick={() => onWater(plant)}>
