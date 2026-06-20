@@ -8,6 +8,7 @@ export interface Plant {
   type: string;
   location: string;
   weather?: WeatherStatus;
+  wateringDuration: number;
 }
 
 export interface WeatherStatus {
@@ -45,7 +46,8 @@ function getStoredPlants(): Plant[] {
         lastWatered: "Sistema configurado",
         idealHumidity: { min: 40, max: 70 },
         type: "Geral",
-        location: "Canteiro Principal"
+        location: "Canteiro Principal",
+        wateringDuration: 15
       }
     ];
     localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultList));
@@ -119,6 +121,8 @@ export async function addPlant(input: PlantInput): Promise<Plant> {
     weather: dadosSensor.weather,
   };
 
+  fetch(`/config?tempo=${novaPlanta.wateringDuration}`, { method: 'POST' }).catch(console.error);
+
   listaPlantas.push(novaPlanta);
   savePlants(listaPlantas);
   return novaPlanta;
@@ -137,6 +141,10 @@ export async function updatePlant(id: number, input: Partial<PlantInput>): Promi
   listaPlantas[idx].status = computeStatus(dadosSensor.porcentagem, listaPlantas[idx].idealHumidity);
   listaPlantas[idx].weather = dadosSensor.weather;
 
+  if (input.wateringDuration) {
+    fetch(`/config?tempo=${input.wateringDuration}`, { method: 'POST' }).catch(console.error);
+  }
+
   savePlants(listaPlantas);
   return listaPlantas[idx];
 }
@@ -150,16 +158,18 @@ export async function deletePlant(id: number): Promise<void> {
 
 // 5.ACIONA O RELÉ FÍSICO NA ESP32
 export async function waterPlant(id: number): Promise<Plant> {
-  // Dispara o comando POST para alterar o estado do relé no hardware
-  const acionamento = await fetch('/toggle', { method: 'POST' });
-  if (!acionamento.ok) {
-    throw new Error("Erro ao enviar comando de acionamento do relé para a ESP32");
-  }
 
   const listaPlantas = getStoredPlants();
   const idx = listaPlantas.findIndex((p) => p.id === id);
 
   if (idx !== -1) {
+    const tempoDesejado = listaPlantas[idx].wateringDuration;
+
+    const acionamento = await fetch(`/toggle?tempo=${tempoDesejado}`, { method: 'POST' });
+    if (!acionamento.ok) {
+      throw new Error("Erro ao enviar comando de acionamento do relé para a ESP32");
+    }
+    
     listaPlantas[idx].lastWatered = "Agora mesmo";
     savePlants(listaPlantas);
 

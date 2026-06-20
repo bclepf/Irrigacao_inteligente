@@ -2,11 +2,10 @@
 #include <ESPAsyncWebServer.h>
 #include <LittleFS.h>
 #include <HTTPClient.h>
-#include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 
-const char* ssid = "S23 de Bernardo";
-const char* password = "123456ABC";
+const char* ssid = "Clepf-2.4G";
+const char* password = "cristina1525";
 
 AsyncWebServer server(80);
 
@@ -25,20 +24,6 @@ bool irrigando = false;
 bool chuvaPrevista = false;
 bool comandoManual = false;
 bool jaRegouNestaLeitura = false; // Evita que regue sem parar durante os 5 minutos
-bool climaDisponivel = false;
-
-// --- PREVISAO DO TEMPO (Open-Meteo / Varginha-MG) ---
-const char* urlPrevisaoClima = "https://api.open-meteo.com/v1/forecast?latitude=-21.55139&longitude=-45.43028&hourly=relative_humidity_2m,precipitation_probability,precipitation&forecast_hours=12&timezone=America%2FSao_Paulo";
-const int janelaPrevisaoHoras = 12;
-const int limiteProbabilidadeChuva = 60; // %
-const float limitePrecipitacaoMm = 0.2;  // mm na janela analisada
-const int limiteUmidadeAr = 85;          // %
-
-int probabilidadeChuvaMax = 0;
-float precipitacaoPrevistaMm = 0.0;
-int umidadeArMax = 0;
-String proximaChuva = "";
-String motivoClima = "Clima ainda nao consultado";
 
 // --- TEMPORIZADORES (millis) ---
 unsigned long ultimaLeituraSensor = 0;
@@ -48,9 +33,7 @@ unsigned long ultimaChecagemClima = 0;
 const long intervaloClima = 600000;   // 10 minutos
 
 unsigned long tempoInicioIrrigacao = 0;
-const long duracaoIrrigacao = 15000;  // 15 segundos de água ligada
-
-void checarPrevisaoClima();
+long duracaoIrrigacao = 15000; // Agora pode ser alterada via painel (padrão 15s)
 
 void setup() {
   Serial.begin(115200);
@@ -61,7 +44,6 @@ void setup() {
   pinMode(pinoRele, OUTPUT); 
   // Como é lógica invertida, HIGH desliga a válvula no início
   digitalWrite(pinoRele, HIGH);
-  digitalWrite(pinoRele, LOW);
   
   // Força a ESP32 a ler o sinal analógico de 0 a 1023
   analogReadResolution(10); 
@@ -85,19 +67,24 @@ void setup() {
     String json = "{\"umidade\":" + String(leituraUmidade) + 
                   ",\"rele\":" + String(irrigando) + 
                   ",\"chuva\":" + String(chuvaPrevista) + 
-                  ",\"manual\":" + String(comandoManual) +
-                  ",\"climaDisponivel\":" + String(climaDisponivel) +
-                  ",\"probabilidadeChuva\":" + String(probabilidadeChuvaMax) +
-                  ",\"precipitacaoPrevista\":" + String(precipitacaoPrevistaMm, 1) +
-                  ",\"umidadeAr\":" + String(umidadeArMax) +
-                  ",\"janelaPrevisaoHoras\":" + String(janelaPrevisaoHoras) +
-                  ",\"proximaChuva\":\"" + proximaChuva +
-                  "\",\"motivoClima\":\"" + motivoClima + "\"}";
+                  ",\"manual\":" + String(comandoManual) + "}";
     request->send(200, "application/json", json);
   });
 
+// Rota para acionamento manual já com o tempo escolhido
   server.on("/toggle", HTTP_POST, [](AsyncWebServerRequest *request){
-    comandoManual = true; // Força a ativação ao clicar no botão
+    if (request->hasParam("tempo")) {
+      duracaoIrrigacao = request->getParam("tempo")->value().toInt() * 1000;
+    }
+    comandoManual = true; 
+    request->send(200, "text/plain", "OK");
+  });
+
+  // Nova rota: Apenas atualiza o tempo para a próxima irrigação automática
+  server.on("/config", HTTP_POST, [](AsyncWebServerRequest *request){
+    if (request->hasParam("tempo")) {
+      duracaoIrrigacao = request->getParam("tempo")->value().toInt() * 1000;
+    }
     request->send(200, "text/plain", "OK");
   });
 
@@ -107,8 +94,6 @@ void setup() {
   });
 
   server.begin();
-  checarPrevisaoClima();
-  ultimaChecagemClima = millis();
 }
 
 void loop() {
@@ -143,9 +128,13 @@ void loop() {
       
       if (precisaAgua) {
         jaRegouNestaLeitura = true; // Trava para não repetir neste ciclo
-        Serial.println("Solo seco! Irrigando por 15 segundos...");
+        Serial.print("Solo seco! Irrigando por ");
+        Serial.print(duracaoIrrigacao / 1000); // Converte de ms para segundos na tela
+        Serial.println(" segundos...");
       } else {
-        Serial.println("Acionamento Manual! Irrigando por 15 segundos...");
+        Serial.print("Acionamento Manual! Irrigando por ");
+        Serial.print(duracaoIrrigacao / 1000);
+        Serial.println(" segundos...");
       }
     }
   } 
@@ -162,109 +151,6 @@ void loop() {
   // --- LÓGICA 3: CHECAGEM DE CLIMA ---
   if (tempoAtual - ultimaChecagemClima >= intervaloClima) {
     ultimaChecagemClima = tempoAtual;
-    checarPrevisaoClima(); 
+    // checarPrevisaoClima(); 
   }
-}
-
-void checarPrevisaoClima() {
-  if (WiFi.status() != WL_CONNECTED) {
-    climaDisponivel = false;
-    motivoClima = "WiFi desconectado";
-    Serial.println("Nao foi possivel consultar clima: WiFi desconectado.");
-    return;
-  }
-
-  WiFiClientSecure client;
-  client.setInsecure();
-
-  HTTPClient http;
-  http.setTimeout(10000);
-
-  if (!http.begin(client, urlPrevisaoClima)) {
-    climaDisponivel = false;
-    motivoClima = "Falha ao iniciar HTTPS";
-    Serial.println("Nao foi possivel iniciar consulta HTTPS da Open-Meteo.");
-    return;
-  }
-
-  int httpCode = http.GET();
-  if (httpCode != HTTP_CODE_OK) {
-    climaDisponivel = false;
-    motivoClima = "Erro HTTP " + String(httpCode);
-    Serial.println("Erro ao consultar Open-Meteo: HTTP " + String(httpCode));
-    http.end();
-    return;
-  }
-
-  DynamicJsonDocument doc(12288);
-  DeserializationError erro = deserializeJson(doc, http.getStream());
-  http.end();
-
-  if (erro) {
-    climaDisponivel = false;
-    motivoClima = "JSON invalido";
-    Serial.println("Erro ao interpretar JSON da Open-Meteo.");
-    return;
-  }
-
-  JsonObject hourly = doc["hourly"];
-  JsonArray horarios = hourly["time"];
-  JsonArray umidadeAr = hourly["relative_humidity_2m"];
-  JsonArray probabilidadeChuva = hourly["precipitation_probability"];
-  JsonArray precipitacao = hourly["precipitation"];
-
-  if (umidadeAr.isNull() || probabilidadeChuva.isNull() || precipitacao.isNull()) {
-    climaDisponivel = false;
-    motivoClima = "Dados de clima ausentes";
-    Serial.println("Resposta da Open-Meteo sem dados horarios esperados.");
-    return;
-  }
-
-  probabilidadeChuvaMax = 0;
-  precipitacaoPrevistaMm = 0.0;
-  umidadeArMax = 0;
-  proximaChuva = "";
-
-  int totalHoras = min(janelaPrevisaoHoras, (int)umidadeAr.size());
-  for (int i = 0; i < totalHoras; i++) {
-    int probabilidade = probabilidadeChuva[i] | 0;
-    float chuvaMm = precipitacao[i] | 0.0;
-    int umidade = umidadeAr[i] | 0;
-
-    if (probabilidade > probabilidadeChuvaMax) {
-      probabilidadeChuvaMax = probabilidade;
-    }
-
-    precipitacaoPrevistaMm += chuvaMm;
-
-    if (umidade > umidadeArMax) {
-      umidadeArMax = umidade;
-    }
-
-    if (proximaChuva == "" && (chuvaMm >= limitePrecipitacaoMm || probabilidade >= limiteProbabilidadeChuva)) {
-      proximaChuva = horarios[i] | "";
-    }
-  }
-
-  bool chuvaNaJanela = precipitacaoPrevistaMm >= limitePrecipitacaoMm || probabilidadeChuvaMax >= limiteProbabilidadeChuva;
-  bool arMuitoUmido = umidadeArMax >= limiteUmidadeAr;
-
-  chuvaPrevista = chuvaNaJanela || arMuitoUmido;
-  climaDisponivel = true;
-
-  if (chuvaNaJanela && arMuitoUmido) {
-    motivoClima = "Chuva prevista ou ar muito umido nas proximas 12h";
-  } else if (chuvaNaJanela) {
-    motivoClima = "Chuva prevista nas proximas 12h";
-  } else if (arMuitoUmido) {
-    motivoClima = "Ar muito umido nas proximas 12h";
-  } else {
-    motivoClima = "Sem bloqueio climatico nas proximas 12h";
-  }
-
-  Serial.println("Clima atualizado pela Open-Meteo:");
-  Serial.println("  Probabilidade chuva max: " + String(probabilidadeChuvaMax) + "%");
-  Serial.println("  Precipitacao prevista: " + String(precipitacaoPrevistaMm, 1) + " mm");
-  Serial.println("  Umidade do ar max: " + String(umidadeArMax) + "%");
-  Serial.println("  Bloqueia irrigacao automatica: " + String(chuvaPrevista ? "sim" : "nao"));
 }

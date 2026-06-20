@@ -35,6 +35,8 @@ const PlantFormDialog = ({ open, onClose, onSave, plant, loading }: Props) => {
   const [idealMin, setIdealMin] = useState(40);
   const [idealMax, setIdealMax] = useState(70);
   const [lastWatered, setLastWatered] = useState("Agora mesmo");
+  const [wateringDuration, setWateringDuration] = useState(15); // NOVO ESTADO: Padrão 15s
+
   const { data: sensor } = useQuery({
     queryKey: ["liveSensorForm"],
     queryFn: getLiveSensorValue,
@@ -50,6 +52,7 @@ const PlantFormDialog = ({ open, onClose, onSave, plant, loading }: Props) => {
       setIdealMin(plant.idealHumidity.min);
       setIdealMax(plant.idealHumidity.max);
       setLastWatered(plant.lastWatered);
+      setWateringDuration(plant.wateringDuration || 15); 
       return;
     }
 
@@ -60,6 +63,7 @@ const PlantFormDialog = ({ open, onClose, onSave, plant, loading }: Props) => {
     setIdealMin(40);
     setIdealMax(70);
     setLastWatered("Agora mesmo");
+    setWateringDuration(15); // Reseta para o padrão
   }, [plant, open]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -73,6 +77,7 @@ const PlantFormDialog = ({ open, onClose, onSave, plant, loading }: Props) => {
       humidity,
       idealHumidity: { min: idealMin, max: idealMax },
       lastWatered,
+      wateringDuration, // INCLUINDO O TEMPO NO SALVAMENTO
     });
   };
 
@@ -131,7 +136,7 @@ const PlantFormDialog = ({ open, onClose, onSave, plant, loading }: Props) => {
             </div>
 
             <div className="bg-secondary/50 p-4 rounded-lg flex flex-col items-center justify-center border border-border mt-2">
-              <span className="text-sm text-muted-foreground mb-1">
+              <span className="text-sm text-muted-foreground mb-1 text-center">
                 Leitura do sensor em tempo real:
               </span>
               <div className="text-4xl font-display font-bold text-primary transition-all">
@@ -141,15 +146,38 @@ const PlantFormDialog = ({ open, onClose, onSave, plant, loading }: Props) => {
 
             <div>
               <Label>Faixa ideal (%)</Label>
-              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 mt-1">
                 <Input type="number" min={0} max={100} value={idealMin} onChange={(e) => setIdealMin(Number(e.target.value))} className="w-full" />
                 <span className="text-sm text-muted-foreground">-</span>
                 <Input type="number" min={0} max={100} value={idealMax} onChange={(e) => setIdealMax(Number(e.target.value))} className="w-full" />
               </div>
             </div>
+
+            {/* SELETOR DE TEMPO DE IRRIGAÇÃO OCUPANDO AS DUAS COLUNAS */}
+            <div className="sm:col-span-2">
+              <Label htmlFor="wateringDuration">Tempo de Irrigação (Válvula Aberta)</Label>
+              <select
+                id="wateringDuration"
+                value={wateringDuration}
+                onChange={(e) => setWateringDuration(Number(e.target.value))}
+                className="flex h-10 w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value={1}>1 segundo</option>
+                <option value={2}>2 segundos</option>
+                <option value={3}>3 segundos</option>
+                <option value={4}>4 segundos</option>
+                <option value={5}>5 segundos</option>
+                <option value={6}>6 segundos</option>
+                <option value={7}>7 segundos</option>
+                <option value={8}>8 segundos</option>
+                <option value={9}>9 segundos</option>
+                <option value={10}>10 segundos</option>
+                <option value={15}>Gotejamento (15 segundos)</option>
+              </select>
+            </div>
           </div>
 
-          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row mt-6">
             <Button type="button" variant="outline" onClick={onClose} className="w-full sm:w-auto">
               Cancelar
             </Button>
