@@ -81,6 +81,14 @@ void setup() {
 
   // 4. ROTAS DO SERVIDOR WEB
   server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request){
+    
+    digitalWrite(pinoAlimentacaoSensor, HIGH);
+    delay(200); 
+    int umidadeAoVivo = analogRead(pinoLeituraSensor);
+    digitalWrite(pinoAlimentacaoSensor, LOW);
+
+    // 2. Atualiza a variável global para manter a sincronia com a irrigação automática
+    leituraUmidade = umidadeAoVivo;
     String json = "{\"umidade\":" + String(leituraUmidade) + 
                   ",\"rele\":" + String(irrigando) + 
                   ",\"chuva\":" + String(chuvaPrevista) + 
@@ -130,7 +138,7 @@ void loop() {
     ultimaLeituraSensor = tempoAtual;
 
     digitalWrite(pinoAlimentacaoSensor, HIGH);
-    delay(10); 
+    delay(200); 
     leituraUmidade = analogRead(pinoLeituraSensor);
     digitalWrite(pinoAlimentacaoSensor, LOW);
 
@@ -210,9 +218,18 @@ void checarPrevisaoClima() {
     return;
   }
 
-  DynamicJsonDocument doc(12288);
-  DeserializationError erro = deserializeJson(doc, http.getStream());
-  http.end();
+  // 1. Baixa a resposta inteira da API de uma vez
+  String payload = http.getString();
+  http.end(); // Já podemos fechar a conexão de rede
+
+  // 2. Imprime no painel para vermos o que realmente chegou
+  Serial.println("Resposta bruta da API:");
+  Serial.println(payload); 
+
+  // 3. Como você está usando a versão mais recente do ArduinoJson (V7), 
+  // o formato correto agora é apenas JsonDocument, sem precisar definir o tamanho!
+  JsonDocument doc; 
+  DeserializationError erro = deserializeJson(doc, payload);
 
   if (erro) {
     climaDisponivel = false;
